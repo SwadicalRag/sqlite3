@@ -1,5 +1,5 @@
-import ffi from "./ffi.ts";
-import { fromFileUrl } from "../deps.ts";
+import * as koffi from "koffi";
+import ffi from "./ffi";
 import {
   SQLITE3_OPEN_CREATE,
   SQLITE3_OPEN_MEMORY,
@@ -10,10 +10,11 @@ import {
   SQLITE_INTEGER,
   SQLITE_NULL,
   SQLITE_TEXT,
-} from "./constants.ts";
-import { readCstr, toCString, unwrap } from "./util.ts";
-import { RestBindParameters, Statement, STATEMENTS } from "./statement.ts";
-import { BlobOpenOptions, SQLBlob } from "./blob.ts";
+} from "./constants";
+import { unwrap } from "./util";
+import { RestBindParameters, Statement, STATEMENTS } from "./statement";
+import { BlobOpenOptions, SQLBlob } from "./blob";
+import { KoffiFunc, KoffiFunction } from "koffi";
 
 /** Various options that can be configured when opening Database connection. */
 export interface DatabaseOpenOptions {
@@ -68,6 +69,7 @@ export interface AggregateFunctionOptions extends FunctionOptions {
 }
 
 const {
+  sqlite_types,
   sqlite3_open_v2,
   sqlite3_close_v2,
   sqlite3_changes,
@@ -100,9 +102,9 @@ const {
 } = ffi;
 
 /** SQLite version string */
-export const SQLITE_VERSION = readCstr(sqlite3_libversion()!);
+export const SQLITE_VERSION = sqlite3_libversion()!;
 /** SQLite source ID string */
-export const SQLITE_SOURCEID = readCstr(sqlite3_sourceid()!);
+export const SQLITE_SOURCEID = sqlite3_sourceid()!;
 
 /**
  * Whether the given SQL statement is complete.
@@ -110,7 +112,7 @@ export const SQLITE_SOURCEID = readCstr(sqlite3_sourceid()!);
  * @param statement SQL statement string
  */
 export function isComplete(statement: string): boolean {
-  return Boolean(sqlite3_complete(toCString(statement)));
+  return Boolean(sqlite3_complete(statement));
 }
 
 /**
@@ -133,7 +135,7 @@ export function isComplete(statement: string): boolean {
  */
 export class Database {
   #path: string;
-  #handle: Deno.PointerValue;
+  #handle: any;
   #open = true;
   #enableLoadExtension = false;
 
@@ -148,7 +150,7 @@ export class Database {
   }
 
   /** Unsafe Raw (pointer) to the sqlite object */
-  get unsafeHandle(): Deno.PointerValue {
+  get unsafeHandle(): any {
     return this.#handle;
   }
 
@@ -193,8 +195,8 @@ export class Database {
     this.#enableLoadExtension = enabled;
   }
 
-  constructor(path: string | URL, options: DatabaseOpenOptions = {}) {
-    this.#path = path instanceof URL ? fromFileUrl(path) : path;
+  constructor(path: string, options: DatabaseOpenOptions = {}) {
+    this.#path = path;
     let flags = 0;
     this.int64 = options.int64 ?? false;
     this.unsafeConcurrency = options.unsafeConcurrency ?? false;
@@ -216,9 +218,9 @@ export class Database {
       }
     }
 
-    const pHandle = new Uint32Array(2);
-    const result = sqlite3_open_v2(toCString(this.#path), pHandle, flags, null);
-    this.#handle = Deno.UnsafePointer.create(pHandle[0] + 2 ** 32 * pHandle[1]);
+    const pHandle = [null];
+    const result = sqlite3_open_v2(this.#path, pHandle, flags, null);
+    this.#handle = pHandle[0];
     if (result !== 0) sqlite3_close_v2(this.#handle);
     unwrap(result);
 
@@ -299,18 +301,17 @@ export class Database {
    */
   exec(sql: string, ...params: RestBindParameters): number {
     if (params.length === 0) {
-      const pErr = new Uint32Array(2);
+      const pErr = [null];
       sqlite3_exec(
         this.#handle,
-        toCString(sql),
+        sql,
         null,
         null,
-        new Uint8Array(pErr.buffer),
+        pErr,
       );
-      const errPtr = Deno.UnsafePointer.create(pErr[0] + 2 ** 32 * pErr[1]);
+      const errPtr = pErr[0];
       if (errPtr !== null) {
-        const err = readCstr(errPtr);
-        sqlite3_free(errPtr);
+        const err = pErr[0];
         throw new Error(err);
       }
       return sqlite3_changes(this.#handle);
@@ -387,7 +388,7 @@ export class Database {
     return properties.default.value as Transaction<T>;
   }
 
-  #callbacks = new Set<Deno.UnsafeCallback>();
+  #callbacks = new Set<koffi.IKoffiRegisteredCallback>();
 
   /**
    * Creates a new user-defined function.
@@ -403,18 +404,12 @@ export class Database {
     fn: CallableFunction,
     options?: FunctionOptions,
   ): void {
-    const cb = new Deno.UnsafeCallback(
-      {
-        parameters: ["pointer", "i32", "pointer"],
-        result: "void",
-      } as const,
+    const cb = koffi.register(
       (ctx, nArgs, pArgs) => {
-        const argptr = new Deno.UnsafePointerView(pArgs!);
         const args: any[] = [];
+        pArgs = koffi.decode(pArgs, koffi.array("sqlite3_value*", nArgs))
         for (let i = 0; i < nArgs; i++) {
-          const arg = Deno.UnsafePointer.create(
-            Number(argptr.getBigUint64(i * 8)),
-          );
+          const arg = pArgs[i];
           const type = sqlite3_value_type(arg);
           switch (type) {
             case SQLITE_INTEGER:
@@ -426,23 +421,15 @@ export class Database {
             case SQLITE_TEXT:
               args.push(
                 new TextDecoder().decode(
-                  new Uint8Array(
-                    Deno.UnsafePointerView.getArrayBuffer(
-                      sqlite3_value_text(arg)!,
-                      sqlite3_value_bytes(arg),
-                    ),
-                  ),
+                  koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
+                  // Uint8Array.from(koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg),"Array"))),
                 ),
               );
               break;
             case SQLITE_BLOB:
               args.push(
-                new Uint8Array(
-                  Deno.UnsafePointerView.getArrayBuffer(
-                    sqlite3_value_blob(arg)!,
-                    sqlite3_value_bytes(arg),
-                  ),
-                ),
+                koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
+                // Uint8Array.from(koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg), "Array"))),
               );
               break;
             case SQLITE_NULL:
@@ -473,16 +460,17 @@ export class Database {
           sqlite3_result_int64(ctx, result);
         } else if (typeof result === "string") {
           const buffer = new TextEncoder().encode(result);
-          sqlite3_result_text(ctx, buffer, buffer.byteLength, 0);
+          sqlite3_result_text(ctx, buffer, buffer.byteLength, null);
         } else if (result instanceof Uint8Array) {
           sqlite3_result_blob(ctx, result, result.length, -1);
         } else {
           const buffer = new TextEncoder().encode(
-            `Invalid return value: ${Deno.inspect(result)}`,
+            `Invalid return value: ${result}`,
           );
           sqlite3_result_error(ctx, buffer, buffer.byteLength);
         }
       },
+      koffi.pointer(sqlite_types.sqlite_xFunc)
     );
 
     let flags = 1;
@@ -505,49 +493,41 @@ export class Database {
 
     const err = sqlite3_create_function(
       this.#handle,
-      toCString(name),
+      name,
       options?.varargs ? -1 : fn.length,
       flags,
       null,
-      cb.pointer,
+      cb,
       null,
       null,
     );
 
     unwrap(err, this.#handle);
 
-    this.#callbacks.add(cb as Deno.UnsafeCallback);
+    this.#callbacks.add(cb);
   }
 
   /**
    * Creates a new user-defined aggregate function.
    */
   aggregate(name: string, options: AggregateFunctionOptions): void {
-    const contexts = new Map<number | bigint, any>();
+    const contexts = new Map<any, any>();
 
-    const cb = new Deno.UnsafeCallback(
-      {
-        parameters: ["pointer", "i32", "pointer"],
-        result: "void",
-      } as const,
+    const cb = koffi.register(
       (ctx, nArgs, pArgs) => {
         const aggrCtx = sqlite3_aggregate_context(ctx, 8);
-        const aggrPtr = Deno.UnsafePointer.value(aggrCtx);
         let aggregate;
-        if (contexts.has(aggrPtr)) {
-          aggregate = contexts.get(aggrPtr);
+        if (contexts.has(aggrCtx)) {
+          aggregate = contexts.get(aggrCtx);
         } else {
           aggregate = typeof options.start === "function"
             ? options.start()
             : options.start;
-          contexts.set(aggrPtr, aggregate);
+          contexts.set(aggrCtx, aggregate);
         }
-        const argptr = new Deno.UnsafePointerView(pArgs!);
         const args: any[] = [];
         for (let i = 0; i < nArgs; i++) {
-          const arg = Deno.UnsafePointer.create(
-            Number(argptr.getBigUint64(i * 8)),
-          );
+          const arg = pArgs[i];
           const type = sqlite3_value_type(arg);
           switch (type) {
             case SQLITE_INTEGER:
@@ -559,22 +539,20 @@ export class Database {
             case SQLITE_TEXT:
               args.push(
                 new TextDecoder().decode(
-                  new Uint8Array(
-                    Deno.UnsafePointerView.getArrayBuffer(
+                    new Uint8Array(
                       sqlite3_value_text(arg)!,
+                      0,
                       sqlite3_value_bytes(arg),
                     ),
-                  ),
                 ),
               );
               break;
             case SQLITE_BLOB:
               args.push(
                 new Uint8Array(
-                  Deno.UnsafePointerView.getArrayBuffer(
-                    sqlite3_value_blob(arg)!,
-                    sqlite3_value_bytes(arg),
-                  ),
+                  sqlite3_value_blob(arg)!,
+                  0,
+                  sqlite3_value_bytes(arg),
                 ),
               );
               break;
@@ -595,20 +573,20 @@ export class Database {
           return;
         }
 
-        contexts.set(aggrPtr, result);
+        contexts.set(aggrCtx, result);
       },
+      koffi.pointer(sqlite_types.sqlite_xStep),
     );
 
-    const cbFinal = new Deno.UnsafeCallback(
+    const cbFinal = koffi.register(
       {
         parameters: ["pointer"],
         result: "void",
       } as const,
       (ctx) => {
         const aggrCtx = sqlite3_aggregate_context(ctx, 0);
-        const aggrPtr = Deno.UnsafePointer.value(aggrCtx);
-        const aggregate = contexts.get(aggrPtr);
-        contexts.delete(aggrPtr);
+        const aggregate = contexts.get(aggrCtx);
+        contexts.delete(aggrCtx);
         let result: any;
         try {
           result = options.final ? options.final(aggregate) : aggregate;
@@ -629,16 +607,17 @@ export class Database {
           sqlite3_result_int64(ctx, result);
         } else if (typeof result === "string") {
           const buffer = new TextEncoder().encode(result);
-          sqlite3_result_text(ctx, buffer, buffer.byteLength, 0);
+          sqlite3_result_text(ctx, buffer, buffer.byteLength, null);
         } else if (result instanceof Uint8Array) {
           sqlite3_result_blob(ctx, result, result.length, -1);
         } else {
           const buffer = new TextEncoder().encode(
-            `Invalid return value: ${Deno.inspect(result)}`,
+            `Invalid return value: ${result}`,
           );
           sqlite3_result_error(ctx, buffer, buffer.byteLength);
         }
       },
+      koffi.pointer(sqlite_types.sqlite_xFinal),
     );
 
     let flags = 1;
@@ -661,19 +640,19 @@ export class Database {
 
     const err = sqlite3_create_function(
       this.#handle,
-      toCString(name),
+      name,
       options?.varargs ? -1 : options.step.length - 1,
       flags,
       null,
       null,
-      cb.pointer,
-      cbFinal.pointer,
+      cb,
+      cbFinal,
     );
 
     unwrap(err, this.#handle);
 
-    this.#callbacks.add(cb as Deno.UnsafeCallback);
-    this.#callbacks.add(cbFinal as Deno.UnsafeCallback);
+    this.#callbacks.add(cb);
+    this.#callbacks.add(cbFinal);
   }
 
   /**
@@ -684,21 +663,17 @@ export class Database {
       throw new Error("Extension loading is not enabled");
     }
 
-    const pzErrMsg = new Uint32Array(2);
+    const pzErrMsg = [null];
 
     const result = sqlite3_load_extension(
       this.#handle,
-      toCString(file),
-      entryPoint ? toCString(entryPoint) : null,
+      file,
+      entryPoint ? entryPoint : null,
       pzErrMsg,
     );
 
-    const pzErrPtr = Deno.UnsafePointer.create(
-      pzErrMsg[0] + 2 ** 32 * pzErrMsg[1],
-    );
-    if (pzErrPtr !== null) {
-      const pzErr = readCstr(pzErrPtr);
-      sqlite3_free(pzErrPtr);
+    if (pzErrMsg[0] !== null) {
+      const pzErr = pzErrMsg[0];
       throw new Error(pzErr);
     }
 
@@ -719,8 +694,9 @@ export class Database {
       }
     }
     for (const cb of this.#callbacks) {
-      cb.close();
+      koffi.unregister(cb);
     }
+    this.#callbacks.clear();
     unwrap(sqlite3_close_v2(this.#handle));
     this.#open = false;
   }

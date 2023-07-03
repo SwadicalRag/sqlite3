@@ -1,4 +1,9 @@
-const ARCH = Deno.env.get("TARGET_ARCH") || Deno.build.arch;
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
+const os = require("os");
+
+const ARCH = process.env.TARGET_ARCH || os.arch();
 
 const COMPILE_OPTIONS: Record<string, string> = {
   SQLITE_DQS: "0",
@@ -30,10 +35,10 @@ const COMPILE_OPTIONS: Record<string, string> = {
   SQLITE_DEFAULT_FOREIGN_KEYS: "1",
 };
 
-const prefix = Deno.build.os === "windows" ? "" : "lib";
-const ext = Deno.build.os === "windows"
+const prefix = os.platform() === "win32" ? "" : "lib";
+const ext = os.platform() === "win32"
   ? "dll"
-  : Deno.build.os === "darwin"
+  : os.platform() === "darwin"
   ? "dylib"
   : "so";
 const lib = `${prefix}sqlite3.${ext}`;
@@ -41,44 +46,24 @@ const libWithArch = `${prefix}sqlite3${
   ARCH !== "x86_64" ? `_${ARCH}` : ""
 }.${ext}`;
 
-const SLICE_WIN = Deno.build.os === "windows" ? 1 : 0;
-
-const $ = (cmd: string | URL, ...args: string[]) => {
-  console.log(`%c$ ${cmd.toString()} ${args.join(" ")}`, "color: #888");
-  const c = typeof cmd === "string" ? cmd : cmd.pathname.slice(SLICE_WIN);
-  new Deno.Command(c, {
-    args,
-    stdin: "null",
-    stdout: "inherit",
-    stderr: "inherit",
-  }).outputSync();
+const $ = (cmd, ...args) => {
+  console.log(`$ ${cmd} ${args.join(" ")}`);
+  execSync(`${cmd} ${args.join(" ")}`, { stdio: "inherit" });
 };
 
-await Deno.remove(new URL("../build", import.meta.url), { recursive: true })
-  .catch(() => {});
-await Deno.remove(new URL("../sqlite/build", import.meta.url), {
-  recursive: true,
-})
-  .catch(() => {});
-await Deno.mkdir(new URL("../build", import.meta.url));
-await Deno.mkdir(new URL("../sqlite/build", import.meta.url));
+try { fs.rmdirSync(path.resolve(__dirname, "../build"), { recursive: true }) } catch (e) {}
+try { fs.rmdirSync(path.resolve(__dirname, "../sqlite/build"), { recursive: true }) } catch (e) {}
+fs.mkdirSync(path.resolve(__dirname, "../build"));
+fs.mkdirSync(path.resolve(__dirname, "../sqlite/build"));
 
-if (Deno.build.os !== "windows") {
+if (os.platform() !== "win32") {
   COMPILE_OPTIONS["SQLITE_OS_UNIX"] = "1";
 }
 
-const CFLAGS = `${
-  Deno.build.os === "windows" ? "OPT_FEATURE_FLAGS" : "CFLAGS"
-}=${Deno.build.os === "windows" ? "" : "-g -O3 -fPIC "}${
-  Object.entries(
-    COMPILE_OPTIONS,
-  )
-    .map(([k, v]) => `-D${k}=${v}`)
-    .join(" ")
-}`;
+const CFLAGS = `${os.platform() === "win32" ? "OPT_FEATURE_FLAGS" : "CFLAGS"}=${os.platform() === "win32" ? "" : "-g -O3 -fPIC "}${Object.entries(COMPILE_OPTIONS).map(([k, v]) => `-D${k}=${v}`).join(" ")}`;
 
-if (Deno.build.os === "windows") {
-  Deno.chdir(new URL("../sqlite/build", import.meta.url));
+if (os.platform() === "win32") {
+  process.chdir(path.resolve(__dirname, "../sqlite/build"));
   $(
     "nmake",
     "/f",
@@ -87,16 +72,16 @@ if (Deno.build.os === "windows") {
     "TOP=..\\",
     CFLAGS,
   );
-  await Deno.copyFile(
-    new URL(`../sqlite/build/${lib}`, import.meta.url),
-    new URL(`../build/${libWithArch}`, import.meta.url),
+  fs.copyFileSync(
+    path.resolve(__dirname, `../sqlite/build/${lib}`),
+    path.resolve(__dirname, `../build/${libWithArch}`),
   );
 } else {
-  Deno.chdir(new URL("../sqlite/build", import.meta.url));
+  process.chdir(path.resolve(__dirname, "../sqlite/build"));
   $(
-    new URL("../sqlite/configure", import.meta.url),
+    path.resolve(__dirname, "../sqlite/configure"),
     "--enable-releasemode",
-    ...(Deno.build.arch === ARCH ? [] : ["--disable-tcl", "--host=arm-linux"]),
+    ...(os.arch() === ARCH ? [] : ["--disable-tcl", "--host=arm-linux"]),
   );
   $(
     "make",
@@ -104,10 +89,10 @@ if (Deno.build.os === "windows") {
     "8",
     CFLAGS,
   );
-  await Deno.copyFile(
-    new URL(`../sqlite/build/.libs/${lib}`, import.meta.url),
-    new URL(`../build/${libWithArch}`, import.meta.url),
+  fs.copyFileSync(
+    path.resolve(__dirname, `../sqlite/build/.libs/${lib}`),
+    path.resolve(__dirname, `../build/${libWithArch}`),
   );
 }
 
-console.log(`%c${libWithArch} built`, "color: #0f0");
+console.log(`${libWithArch} built`);

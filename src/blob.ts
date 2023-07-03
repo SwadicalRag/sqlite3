@@ -1,6 +1,8 @@
-import type { Database } from "./database.ts";
-import ffi from "./ffi.ts";
-import { toCString, unwrap } from "./util.ts";
+import { WritableStream, ReadableStream } from "node:stream/web";
+import type { Database } from "./database";
+import ffi from "./ffi";
+import { unwrap } from "./util";
+import * as koffi from "koffi";
 
 const {
   sqlite3_blob_open,
@@ -33,24 +35,24 @@ export interface BlobOpenOptions {
  * @see https://www.sqlite.org/c3ref/blob_open.html
  */
 export class SQLBlob {
-  #handle: Deno.PointerValue;
+  #handle: any;
 
   constructor(db: Database, options: BlobOpenOptions) {
     options = Object.assign({
       readonly: true,
       db: "main",
     }, options);
-    const pHandle = new Uint32Array(2);
+    const pHandle = [null];
     unwrap(sqlite3_blob_open(
       db.unsafeHandle,
-      toCString(options.db ?? "main"),
-      toCString(options.table),
-      toCString(options.column),
+      (options.db ?? "main"),
+      (options.table),
+      (options.column),
       options.row,
       options.readonly === false ? 1 : 0,
       pHandle,
     ));
-    this.#handle = Deno.UnsafePointer.create(pHandle[0] + 2 ** 32 * pHandle[1]);
+    this.#handle = pHandle[0];
   }
 
   /** Byte size of the Blob */
@@ -81,7 +83,7 @@ export class SQLBlob {
       type: "bytes",
       pull: (ctx) => {
         try {
-          const byob = ctx.byobRequest;
+          const byob = ctx.byobRequest as any;
           if (byob) {
             const toRead = Math.min(
               length - offset,
@@ -109,7 +111,7 @@ export class SQLBlob {
           }
         } catch (e) {
           ctx.error(e);
-          ctx.byobRequest?.respond(0);
+          (ctx.byobRequest as any)?.respond(0);
         }
       },
     });

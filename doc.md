@@ -31,9 +31,6 @@ pass `create: false` in the options.
 // Open using default options
 const db = new Database("test.db");
 
-// Open using URL path (relative to current file/module, not CWD)
-const db = new Database(new URL("./test.db", import.meta.url));
-
 // Open in memory
 const db = new Database(":memory:");
 

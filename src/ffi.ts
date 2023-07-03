@@ -1,626 +1,425 @@
-import { dlopen } from "https://deno.land/x/plug@1.0.1/mod.ts";
-import meta from "../deno.json" assert { type: "json" };
+import * as koffi from "koffi";
 
-const symbols = {
-  sqlite3_open_v2: {
-    parameters: [
-      "buffer", // const char *filename
-      "buffer", // sqlite3 **ppDb
-      "i32", // int flags
-      "pointer", // const char *zVfs
-    ],
-    result: "i32",
-  },
+let lib: koffi.IKoffiLib
 
-  sqlite3_close_v2: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "i32",
-  },
-
-  sqlite3_changes: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "i32",
-  },
-
-  sqlite3_total_changes: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "i32",
-  },
-
-  sqlite3_last_insert_rowid: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "i32",
-  },
-
-  sqlite3_get_autocommit: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "i32",
-  },
-
-  sqlite3_prepare_v2: {
-    parameters: [
-      "pointer", // sqlite3 *db
-      "buffer", // const char *zSql
-      "i32", // int nByte
-      "buffer", // sqlite3_stmt **ppStmt
-      "pointer", // const char **pzTail
-    ],
-    result: "i32",
-  },
-
-  sqlite3_reset: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_clear_bindings: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_step: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_step_cb: {
-    name: "sqlite3_step",
-    callback: true,
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_column_count: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_column_type: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "i32",
-  },
-
-  sqlite3_column_text: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_finalize: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_exec: {
-    parameters: [
-      "pointer", // sqlite3 *db
-      "buffer", // const char *sql
-      "pointer", // sqlite3_callback callback
-      "pointer", // void *arg
-      "buffer", // char **errmsg
-    ],
-    result: "i32",
-  },
-
-  sqlite3_free: {
-    parameters: [
-      "pointer", // void *p
-    ],
-    result: "void",
-  },
-
-  sqlite3_column_int: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "i32",
-  },
-
-  sqlite3_column_double: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "f64",
-  },
-
-  sqlite3_column_blob: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_column_bytes: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "i32",
-  },
-
-  sqlite3_column_name: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_column_decltype: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "u64",
-  },
-
-  sqlite3_bind_parameter_index: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "buffer", // const char *zName
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_text: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-      "buffer", // const char *zData
-      "i32", // int nData
-      "pointer", // void (*xDel)(void*)
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_blob: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-      "buffer", // const void *zData
-      "i32", // int nData
-      "pointer", // void (*xDel)(void*)
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_double: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-      "f64", // double rValue
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_int: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-      "i32", // int iValue
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_int64: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-      "i64", // i64 iValue
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_null: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "i32",
-  },
-
-  sqlite3_expanded_sql: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_bind_parameter_count: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_complete: {
-    parameters: [
-      "buffer", // const char *sql
-    ],
-    result: "i32",
-  },
-
-  sqlite3_sourceid: {
-    parameters: [],
-    result: "pointer",
-  },
-
-  sqlite3_libversion: {
-    parameters: [],
-    result: "pointer",
-  },
-
-  sqlite3_blob_open: {
-    parameters: [
-      "pointer", /* sqlite3 *db */
-      "buffer", /* const char *zDb */
-      "buffer", /* const char *zTable */
-      "buffer", /* const char *zColumn */
-      "i64", /* sqlite3_int64 iRow */
-      "i32", /* int flags */
-      "buffer", /* sqlite3_blob **ppBlob */
-    ],
-    result: "i32",
-  },
-
-  sqlite3_blob_read: {
-    parameters: [
-      "pointer", /* sqlite3_blob *blob */
-      "buffer", /* void *Z */
-      "i32", /* int N */
-      "i32", /* int iOffset */
-    ],
-    result: "i32",
-  },
-
-  sqlite3_blob_write: {
-    parameters: [
-      "pointer", /* sqlite3_blob *blob */
-      "buffer", /* const void *z */
-      "i32", /* int n */
-      "i32", /* int iOffset */
-    ],
-    result: "i32",
-  },
-
-  sqlite3_blob_bytes: {
-    parameters: ["pointer" /* sqlite3_blob *blob */],
-    result: "i32",
-  },
-
-  sqlite3_blob_close: {
-    parameters: ["pointer" /* sqlite3_blob *blob */],
-    result: "i32",
-  },
-
-  sqlite3_sql: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_stmt_readonly: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-    ],
-    result: "i32",
-  },
-
-  sqlite3_bind_parameter_name: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_errmsg: {
-    parameters: [
-      "pointer", // sqlite3 *db
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_errstr: {
-    parameters: [
-      "i32", // int rc
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_column_int64: {
-    parameters: [
-      "pointer", // sqlite3_stmt *pStmt
-      "i32", // int iCol
-    ],
-    result: "i64",
-  },
-
-  sqlite3_backup_init: {
-    parameters: [
-      "pointer", // sqlite3 *pDest
-      "buffer", // const char *zDestName
-      "pointer", // sqlite3 *pSource
-      "buffer", // const char *zSourceName
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_backup_step: {
-    parameters: [
-      "pointer", // sqlite3_backup *p
-      "i32", // int nPage
-    ],
-    result: "i32",
-  },
-
-  sqlite3_backup_finish: {
-    parameters: [
-      "pointer", // sqlite3_backup *p
-    ],
-    result: "i32",
-  },
-
-  sqlite3_backup_remaining: {
-    parameters: [
-      "pointer", // sqlite3_backup *p
-    ],
-    result: "i32",
-  },
-
-  sqlite3_backup_pagecount: {
-    parameters: [
-      "pointer", // sqlite3_backup *p
-    ],
-    result: "i32",
-  },
-
-  sqlite3_create_function: {
-    parameters: [
-      "pointer", // sqlite3 *db
-      "buffer", // const char *zFunctionName
-      "i32", // int nArg
-      "i32", // int eTextRep
-      "pointer", // void *pApp
-      "pointer", // void (*xFunc)(sqlite3_context*,int,sqlite3_value**)
-      "pointer", // void (*xStep)(sqlite3_context*,int,sqlite3_value**)
-      "pointer", // void (*xFinal)(sqlite3_context*)
-    ],
-    result: "i32",
-  },
-
-  sqlite3_result_blob: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "buffer", // const void *z
-      "i32", // int n
-      "isize", // void (*xDel)(void*)
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_double: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "f64", // double rVal
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_error: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "buffer", // const char *z
-      "i32", // int n
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_int: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "i32", // int iVal
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_int64: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "i64", // sqlite3_int64 iVal
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_null: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-    ],
-    result: "void",
-  },
-
-  sqlite3_result_text: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "buffer", // const char *z
-      "i32", // int n
-      "isize", // void (*xDel)(void*)
-    ],
-    result: "void",
-  },
-
-  sqlite3_value_type: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "i32",
-  },
-
-  sqlite3_value_blob: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_value_double: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "f64",
-  },
-
-  sqlite3_value_int: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "i32",
-  },
-
-  sqlite3_value_int64: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "i64",
-  },
-
-  sqlite3_value_text: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_value_bytes: {
-    parameters: [
-      "pointer", // sqlite3_value *pVal
-    ],
-    result: "i32",
-  },
-
-  sqlite3_aggregate_context: {
-    parameters: [
-      "pointer", // sqlite3_context *p
-      "i32", // int nBytes
-    ],
-    result: "pointer",
-  },
-
-  sqlite3_enable_load_extension: {
-    parameters: [
-      "pointer", // sqlite3 *db
-      "i32", // int onoff
-    ],
-    result: "i32",
-  },
-
-  sqlite3_load_extension: {
-    parameters: [
-      "pointer", // sqlite3 *db
-      "buffer", // const char *zFile
-      "buffer", // const char *zProc
-      "buffer", // const char **pzErrMsg
-    ],
-    result: "i32",
-  },
-
-  sqlite3_initialize: {
-    parameters: [],
-    result: "i32",
-  },
-} as const satisfies Deno.ForeignLibraryInterface;
-
-let lib: Deno.DynamicLibrary<typeof symbols>["symbols"];
-
-function tryGetEnv(key: string): string | undefined {
+function tryOpen(path: string, emitError = false) {
   try {
-    return Deno.env.get(key);
-  } catch (e) {
-    if (e instanceof Deno.errors.PermissionDenied) {
-      return undefined;
-    }
-    throw e;
+    lib = koffi.load(path);
+    return true;
+  }
+  catch(e) {
+    if(emitError) throw e;
+    return false;
   }
 }
 
-try {
-  const customPath = tryGetEnv("DENO_SQLITE_PATH");
-  const sqliteLocal = tryGetEnv("DENO_SQLITE_LOCAL");
-
-  if (sqliteLocal === "1") {
-    lib = Deno.dlopen(
-      new URL(
-        `../build/${Deno.build.os === "windows" ? "" : "lib"}sqlite3${
-          Deno.build.arch !== "x86_64" ? `_${Deno.build.arch}` : ""
-        }.${
-          Deno.build.os === "windows"
-            ? "dll"
-            : Deno.build.os === "darwin"
-            ? "dylib"
-            : "so"
-        }`,
-        import.meta.url,
-      ),
-      symbols,
-    ).symbols;
-  } else if (customPath) {
-    lib = Deno.dlopen(customPath, symbols).symbols;
-  } else {
-    lib = (
-      await dlopen(
-        {
-          name: meta.name,
-          url: `${meta.github}/releases/download/${meta.version}/`,
-          suffixes: {
-            aarch64: "_aarch64",
-          },
-        },
-        symbols,
-      )
-    ).symbols;
-  }
-} catch (e) {
-  if (e instanceof Deno.errors.PermissionDenied) {
-    throw e;
-  }
-
-  throw new Error("Failed to load SQLite3 Dynamic Library", { cause: e });
+if(!lib && process.env["DENO_SQLITE_LOCAL"] === "1") {
+  tryOpen(process.env["NODE_SQLITE_PATH"], true);
 }
+if(!lib) tryOpen("sqlite3", true);
 
-const init = lib.sqlite3_initialize();
-if (init !== 0) {
-  throw new Error(`Failed to initialize SQLite3: ${init}`);
-}
+const sqlite3_type = koffi.opaque("sqlite3");
+const sqlite3_context_type = koffi.opaque("sqlite3_context");
+const sqlite3_backup_type = koffi.opaque("sqlite3_backup");
+const sqlite3_blob_type = koffi.opaque("sqlite3_blob");
+const sqlite3_stmt_type = koffi.opaque("sqlite3_stmt");
+const sqlite3_value_type = koffi.opaque("sqlite3_value");
 
-export default lib;
+const sqlite_callback = koffi.proto("int *callback(void*,int,char**,char**)");
+const sqlite_xDel = koffi.proto("void *xDel(void*)");
+const sqlite_xFunc = koffi.proto(
+  "void *xFunc(sqlite3_context*,int,sqlite3_value**)"
+);
+const sqlite_xStep = koffi.proto(
+  "void *xStep(sqlite3_context*,int,sqlite3_value**)"
+);
+const sqlite_xFinal = koffi.proto("void *xFinal(sqlite3_context*)");
+
+const sqlite3_free = lib.func("sqlite3_free", "void", [
+  "void*", // void *p
+]);
+const sqlite_string = koffi.disposable('SqliteString', 'const char*', sqlite3_free);
+
+export default {
+  sqlite_types: {
+    sqlite_string,
+    sqlite3_type,
+    sqlite3_context_type,
+    sqlite3_backup_type,
+    sqlite3_blob_type,
+    sqlite3_stmt_type,
+    sqlite3_value_type,
+    sqlite_callback,
+    sqlite_xDel,
+    sqlite_xFunc,
+    sqlite_xStep,
+    sqlite_xFinal,
+  },
+
+  sqlite3_open_v2: lib.func("sqlite3_open_v2", "int32", [
+    "const char*", // const char *filename
+    koffi.out("sqlite3**"), // sqlite3 **ppDb
+    "int32", // int flags
+    "const char*", // const char *zVfs
+  ]),
+
+  sqlite3_close_v2: lib.func("sqlite3_close_v2", "int32", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_changes: lib.func("sqlite3_changes", "int32", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_total_changes: lib.func("sqlite3_total_changes", "int32", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_last_insert_rowid: lib.func("sqlite3_last_insert_rowid", "int32", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_get_autocommit: lib.func("sqlite3_get_autocommit", "int32", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_prepare_v2: lib.func("sqlite3_prepare_v2", "int32", [
+    "sqlite3*", // sqlite3 *db
+    "const char*", // const char *zSql
+    "int32", // int nByte
+    koffi.out("sqlite3_stmt**"), // sqlite3_stmt **ppStmt
+    koffi.out("const char **"), // const char **pzTail
+  ]),
+
+  sqlite3_reset: lib.func("sqlite3_reset", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_clear_bindings: lib.func("sqlite3_clear_bindings", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_step: lib.func("sqlite3_step", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_step_cb: lib.func("sqlite3_step", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_column_count: lib.func("sqlite3_column_count", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_column_type: lib.func("sqlite3_column_type", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_text: lib.func(
+    "sqlite3_column_text",
+    "const char *",
+    [
+      "sqlite3_stmt*", // sqlite3_stmt *pStmt
+      "int32", // int iCol
+    ]
+  ),
+
+  sqlite3_finalize: lib.func("sqlite3_finalize", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_exec: lib.func("sqlite3_exec", "int32", [
+    "sqlite3*", // sqlite3 *db
+    "const char *", // const char *sql
+    "callback*", // sqlite3_callback callback
+    "void *", // void *arg
+    koffi.out("SqliteString*"), // char **errmsg
+  ]),
+
+  sqlite3_free,
+
+  sqlite3_column_int: lib.func("sqlite3_column_int", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_double: lib.func("sqlite3_column_double", "float64", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_blob: lib.func("sqlite3_column_blob", "const uint8*", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_bytes: lib.func("sqlite3_column_bytes", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_name: lib.func("sqlite3_column_name", "const char*", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_column_decltype: lib.func("sqlite3_column_decltype", "uint64", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_bind_parameter_index: lib.func(
+    "sqlite3_bind_parameter_index",
+    "int32",
+    [
+      "sqlite3_stmt*", // sqlite3_stmt *pStmt
+      "const char*", // const char *zName
+    ]
+  ),
+
+  sqlite3_bind_text: lib.func("sqlite3_bind_text", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+    "const uint8*", // const char *zData
+    "int32", // int nData
+    "void*", // void (*xDel)(void*)
+  ]),
+
+  sqlite3_bind_blob: lib.func("sqlite3_bind_blob", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+    "const void *", // const void *zData
+    "int32", // int nData
+    "void*", // void (*xDel)(void*)
+  ]),
+
+  sqlite3_bind_double: lib.func("sqlite3_bind_double", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+    "float64", // double rValue
+  ]),
+
+  sqlite3_bind_int: lib.func("sqlite3_bind_int", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+    "int32", // int iValue
+  ]),
+
+  sqlite3_bind_int64: lib.func("sqlite3_bind_int64", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+    "int64", // int64 iValue
+  ]),
+
+  sqlite3_bind_null: lib.func("sqlite3_bind_null", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_expanded_sql: lib.func("sqlite3_expanded_sql", "char *", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_bind_parameter_count: lib.func(
+    "sqlite3_bind_parameter_count",
+    "int32",
+    [
+      "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    ]
+  ),
+
+  sqlite3_complete: lib.func("sqlite3_complete", "int32", [
+    "const char*", // const char *sql
+  ]),
+
+  sqlite3_sourceid: lib.func("sqlite3_sourceid", "const char *", []),
+
+  sqlite3_libversion: lib.func("sqlite3_libversion", "const char *", []),
+
+  sqlite3_blob_open: lib.func("sqlite3_blob_open", "int32", [
+      "sqlite3*" /* sqlite3 *db */,
+      "const char *" /* const char *zDb */,
+      "const char *" /* const char *zTable */,
+      "const char *" /* const char *zColumn */,
+      "int64" /* sqlite3_int64 iRow */,
+      "int32" /* int flags */,
+      koffi.out("sqlite3_blob**") /* sqlite3_blob **ppBlob */,
+    ],
+  ),
+
+  sqlite3_blob_read: lib.func("sqlite3_blob_read", "int32", [
+    "sqlite3_blob*" /* sqlite3_blob *blob */,
+    koffi.inout("uint8_t**") /* sqlite3_blob **ppBlob */,
+    "int32" /* int N */,
+    "int32" /* int iOffset */,
+  ]),
+
+  sqlite3_blob_write: lib.func("sqlite3_blob_write", "int32", [
+    "sqlite3_blob*" /* sqlite3_blob *blob */,
+    koffi.inout("uint8_t**") /* sqlite3_blob **ppBlob */,
+    "int32" /* int n */,
+    "int32" /* int iOffset */,
+  ]),
+
+  sqlite3_blob_bytes: lib.func("sqlite3_blob_bytes", "int32", ["sqlite3_blob*" /* sqlite3_blob *blob */
+  ]),
+  
+  sqlite3_blob_close: lib.func("sqlite3_blob_close", "int32", ["sqlite3_blob*" /* sqlite3_blob *blob */
+  ]),
+  
+  sqlite3_sql: lib.func("sqlite3_sql", "const char *", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_stmt_readonly: lib.func("sqlite3_stmt_readonly", "int32", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+  ]),
+
+  sqlite3_bind_parameter_name: lib.func(
+    "sqlite3_bind_parameter_name",
+    "const char *",
+    [
+      "sqlite3_stmt*", // sqlite3_stmt *pStmt
+      "int32", // int iCol
+    ]
+  ),
+
+  sqlite3_errmsg: lib.func("sqlite3_errmsg", "const char *", [
+    "sqlite3*", // sqlite3 *db
+  ]),
+
+  sqlite3_errstr: lib.func("sqlite3_errstr", "const char *", [
+    "int32", // int rc
+  ]),
+
+  sqlite3_column_int64: lib.func("sqlite3_column_int64", "int64", [
+    "sqlite3_stmt*", // sqlite3_stmt *pStmt
+    "int32", // int iCol
+  ]),
+
+  sqlite3_backup_init: lib.func("sqlite3_backup_init", "sqlite3_backup*", [
+    "sqlite3*", // sqlite3 *pDest
+    "const char*", // const char *zDestName
+    "sqlite3*", // sqlite3 *pSource
+    "const char*", // const char *zSourceName
+  ]),
+
+  sqlite3_backup_step: lib.func("sqlite3_backup_step", "int32", [
+    "sqlite3_backup*", // sqlite3_backup *p
+    "int32", // int nPage
+  ]),
+
+  sqlite3_backup_finish: lib.func("sqlite3_backup_finish", "int32", [
+    "sqlite3_backup*", // sqlite3_backup *p
+  ]),
+
+  sqlite3_backup_remaining: lib.func("sqlite3_backup_remaining", "int32", [
+    "sqlite3_backup*", // sqlite3_backup *p
+  ]),
+
+  sqlite3_backup_pagecount: lib.func("sqlite3_backup_pagecount", "int32", [
+    "sqlite3_backup*", // sqlite3_backup *p
+  ]),
+
+  sqlite3_create_function: lib.func("sqlite3_create_function", "int32", [
+    "sqlite3*", // sqlite3 *db
+    "const char*", // const char *zFunctionName
+    "int32", // int nArg
+    "int32", // int eTextRep
+    "void *", // void *pApp
+    "xFunc*", // void (*xFunc)(sqlite3_context*,int,sqlite3_value**)
+    "xStep*", // void (*xStep)(sqlite3_context*,int,sqlite3_value**)
+    "xFinal*", // void (*xFinal)(sqlite3_context*)
+  ]),
+
+  sqlite3_result_blob: lib.func("sqlite3_result_blob", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "const void *", // const void *z
+    "int32", // int n
+    "void*", // void (*xDel)(void*)
+  ]),
+
+  sqlite3_result_double: lib.func("sqlite3_result_double", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "float64", // double rVal
+  ]),
+
+  sqlite3_result_error: lib.func("sqlite3_result_error", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "const char*", // const char *z
+    "int32", // int n
+  ]),
+
+  sqlite3_result_int: lib.func("sqlite3_result_int", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "int32", // int iVal
+  ]),
+
+  sqlite3_result_int64: lib.func("sqlite3_result_int64", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "int64", // sqlite3_int64 iVal
+  ]),
+
+  sqlite3_result_null: lib.func("sqlite3_result_null", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+  ]),
+
+  sqlite3_result_text: lib.func("sqlite3_result_text", "void", [
+    "sqlite3_context*", // sqlite3_context *p
+    "const int8*", // const char *z
+    "int32", // int n
+    "xDel*", // void (*xDel)(void*)
+  ]),
+
+  sqlite3_value_type: lib.func("sqlite3_value_type", "int32", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_blob: lib.func("sqlite3_value_blob", "const void *", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_double: lib.func("sqlite3_value_double", "float64", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_int: lib.func("sqlite3_value_int", "int32", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_int64: lib.func("sqlite3_value_int64", "int64", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_text: lib.func("sqlite3_value_text", "const void *", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_value_bytes: lib.func("sqlite3_value_bytes", "int32", [
+    "sqlite3_value*", // sqlite3_value *pVal
+  ]),
+
+  sqlite3_aggregate_context: lib.func("sqlite3_aggregate_context", "void*", [
+    "sqlite3_context*", // sqlite3_context *p
+    "int32", // int nBytes
+  ]),
+
+  sqlite3_enable_load_extension: lib.func(
+    "sqlite3_enable_load_extension",
+    "int32",
+    [
+      "sqlite3*", // sqlite3 *db
+      "int32", // int onoff
+    ]
+  ),
+
+  sqlite3_load_extension: lib.func("sqlite3_load_extension", "int32", [
+    "sqlite3*", // sqlite3 *db
+    "const char*", // const char *zFile
+    "const char*", // const char *zProc
+    koffi.out("SqliteString*"), // const char **pzErrMsg
+  ]),
+
+  sqlite3_initialize: lib.func("sqlite3_initialize", "int32", []),
+};

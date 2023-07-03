@@ -1,6 +1,7 @@
-import type { Database } from "./database.ts";
-import { readCstr, toCString, unwrap } from "./util.ts";
-import ffi from "./ffi.ts";
+import * as koffi from "koffi";
+import type { Database } from "./database";
+import { toCString, unwrap } from "./util";
+import ffi from "./ffi";
 import {
   SQLITE3_DONE,
   SQLITE3_ROW,
@@ -8,7 +9,7 @@ import {
   SQLITE_FLOAT,
   SQLITE_INTEGER,
   SQLITE_TEXT,
-} from "./constants.ts";
+} from "./constants";
 
 const {
   sqlite3_prepare_v2,
@@ -55,12 +56,12 @@ export type BindValue =
 export type BindParameters = BindValue[] | Record<string, BindValue>;
 export type RestBindParameters = BindValue[] | [BindParameters];
 
-export const STATEMENTS = new Map<Deno.PointerValue, Deno.PointerValue>();
+export const STATEMENTS = new Map<any, any>();
 
 const emptyStringBuffer = new Uint8Array(1);
 
 const statementFinalizer = new FinalizationRegistry(
-  (ptr: Deno.PointerValue) => {
+  (ptr: any) => {
     if (STATEMENTS.has(ptr)) {
       sqlite3_finalize(ptr);
       STATEMENTS.delete(ptr);
@@ -68,7 +69,7 @@ const statementFinalizer = new FinalizationRegistry(
   },
 );
 
-function getColumn(handle: Deno.PointerValue, i: number, int64: boolean): any {
+function getColumn(handle: any, i: number, int64: boolean): any {
   const ty = sqlite3_column_type(handle, i);
 
   if (ty === SQLITE_INTEGER && !int64) return sqlite3_column_int(handle, i);
@@ -77,7 +78,7 @@ function getColumn(handle: Deno.PointerValue, i: number, int64: boolean): any {
     case SQLITE_TEXT: {
       const ptr = sqlite3_column_text(handle, i);
       if (ptr === null) return null;
-      return readCstr(ptr, 0);
+      return ptr;
     }
 
     case SQLITE_INTEGER: {
@@ -91,9 +92,8 @@ function getColumn(handle: Deno.PointerValue, i: number, int64: boolean): any {
     case SQLITE_BLOB: {
       const ptr = sqlite3_column_blob(handle, i);
       const bytes = sqlite3_column_bytes(handle, i);
-      return new Uint8Array(
-        Deno.UnsafePointerView.getArrayBuffer(ptr!, bytes).slice(0),
-      );
+      // return Uint8Array.from(koffi.decode(ptr, koffi.array("uint8_t", bytes, "Array")));
+      return koffi.decode(ptr, koffi.array("uint8_t", bytes));
     }
 
     default: {
@@ -108,8 +108,8 @@ function getColumn(handle: Deno.PointerValue, i: number, int64: boolean): any {
  * See `Database#prepare` for more information.
  */
 export class Statement {
-  #handle: Deno.PointerValue;
-  #finalizerToken: { handle: Deno.PointerValue };
+  #handle: any;
+  #finalizerToken: { handle: any };
   #bound = false;
   #hasNoArgs = false;
   #unsafeConcurrency;
@@ -125,18 +125,18 @@ export class Statement {
   callback = false;
 
   /** Unsafe Raw (pointer) to the sqlite object */
-  get unsafeHandle(): Deno.PointerValue {
+  get unsafeHandle(): any {
     return this.#handle;
   }
 
   /** SQL string including bindings */
   get expandedSql(): string {
-    return readCstr(sqlite3_expanded_sql(this.#handle)!);
+    return (sqlite3_expanded_sql(this.#handle)!);
   }
 
   /** The SQL string that we passed when creating statement */
   get sql(): string {
-    return readCstr(sqlite3_sql(this.#handle)!);
+    return (sqlite3_sql(this.#handle)!);
   }
 
   /** Whether this statement doesn't make any direct changes to the DB */
@@ -174,18 +174,18 @@ export class Statement {
   }
 
   constructor(public db: Database, sql: string) {
-    const pHandle = new Uint32Array(2);
+    const pHandle = [null];
     unwrap(
       sqlite3_prepare_v2(
         db.unsafeHandle,
-        toCString(sql),
+        sql,
         sql.length,
         pHandle,
         null,
       ),
       db.unsafeHandle,
     );
-    this.#handle = Deno.UnsafePointer.create(pHandle[0] + 2 ** 32 * pHandle[1]);
+    this.#handle = pHandle[0];
     STATEMENTS.set(this.#handle, db.unsafeHandle);
     this.#unsafeConcurrency = db.unsafeConcurrency;
     this.#finalizerToken = { handle: this.#handle };
@@ -213,7 +213,7 @@ export class Statement {
 
   /** Get bind parameter name by index */
   bindParameterName(i: number): string {
-    return readCstr(sqlite3_bind_parameter_name(this.#handle, i)!);
+    return (sqlite3_bind_parameter_name(this.#handle, i)!);
   }
 
   /** Get bind parameter index by name */
@@ -221,7 +221,7 @@ export class Statement {
     if (name[0] !== ":" && name[0] !== "@" && name[0] !== "$") {
       name = ":" + name;
     }
-    return sqlite3_bind_parameter_index(this.#handle, toCString(name));
+    return sqlite3_bind_parameter_index(this.#handle, name);
   }
 
   #begin(): void {
@@ -265,7 +265,7 @@ export class Statement {
           const str = new TextEncoder().encode(param);
           this.#bindRefs.add(str);
           unwrap(
-            sqlite3_bind_text(this.#handle, i + 1, str, str.byteLength, null),
+            sqlite3_bind_text(this.#handle, i + 1, str, str.byteLength, -1),
           );
         }
         break;
@@ -281,7 +281,7 @@ export class Statement {
               i + 1,
               param,
               param.byteLength,
-              null,
+              -1,
             ),
           );
         } else if (param instanceof Date) {
@@ -293,11 +293,11 @@ export class Statement {
               i + 1,
               cstring,
               -1,
-              null,
+              -1,
             ),
           );
         } else {
-          throw new Error(`Value of unsupported type: ${Deno.inspect(param)}`);
+          throw new Error(`Value of unsupported type: ${String(param)}`);
         }
         break;
       }
@@ -315,7 +315,7 @@ export class Statement {
         ));
         break;
       default: {
-        throw new Error(`Value of unsupported type: ${Deno.inspect(param)}`);
+        throw new Error(`Value of unsupported type: ${String(param)}`);
       }
     }
   }
@@ -479,9 +479,9 @@ export class Statement {
     return result as T[];
   }
 
-  #rowObjectFn: ((h: Deno.PointerValue) => any) | undefined;
+  #rowObjectFn: ((h: any) => any) | undefined;
 
-  getRowObject(): (h: Deno.PointerValue) => any {
+  getRowObject(): (h: any) => any {
     if (!this.#rowObjectFn || !this.#unsafeConcurrency) {
       const columnNames = this.columnNames();
       const getRowObject = new Function(
@@ -636,7 +636,7 @@ export class Statement {
       const columnCount = sqlite3_column_count(this.#handle);
       const columnNames = new Array(columnCount);
       for (let i = 0; i < columnCount; i++) {
-        columnNames[i] = readCstr(sqlite3_column_name(this.#handle, i)!);
+        columnNames[i] = (sqlite3_column_name(this.#handle, i)!);
       }
       this.#columnNames = columnNames;
       this.#rowObject = {};
@@ -726,7 +726,7 @@ export class Statement {
 
   /** Coerces the statement to a string, which in this case is expanded SQL. */
   toString(): string {
-    return readCstr(sqlite3_expanded_sql(this.#handle)!);
+    return (sqlite3_expanded_sql(this.#handle)!);
   }
 
   /** Iterate over resultant rows from query. */
