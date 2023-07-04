@@ -429,6 +429,7 @@ export class Database {
             case SQLITE_BLOB:
               args.push(
                 koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
+                // copyBuffer(koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg)))),
                 // Uint8Array.from(koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg), "Array"))),
               );
               break;
@@ -539,21 +540,13 @@ export class Database {
             case SQLITE_TEXT:
               args.push(
                 new TextDecoder().decode(
-                    new Uint8Array(
-                      sqlite3_value_text(arg)!,
-                      0,
-                      sqlite3_value_bytes(arg),
-                    ),
+                  koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
                 ),
               );
               break;
             case SQLITE_BLOB:
               args.push(
-                new Uint8Array(
-                  sqlite3_value_blob(arg)!,
-                  0,
-                  sqlite3_value_bytes(arg),
-                ),
+                koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
               );
               break;
             case SQLITE_NULL:

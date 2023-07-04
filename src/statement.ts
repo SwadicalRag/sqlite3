@@ -92,7 +92,6 @@ function getColumn(handle: any, i: number, int64: boolean): any {
     case SQLITE_BLOB: {
       const ptr = sqlite3_column_blob(handle, i);
       const bytes = sqlite3_column_bytes(handle, i);
-      // return Uint8Array.from(koffi.decode(ptr, koffi.array("uint8_t", bytes, "Array")));
       return koffi.decode(ptr, koffi.array("uint8_t", bytes));
     }
 
@@ -259,7 +258,7 @@ export class Statement {
           // of an empty string. As a workaround let's use a special
           // non-empty buffer, but specify zero length.
           unwrap(
-            sqlite3_bind_text(this.#handle, i + 1, emptyStringBuffer, 0, null),
+            sqlite3_bind_text(this.#handle, i + 1, emptyStringBuffer, 0, -1),
           );
         } else {
           const str = new TextEncoder().encode(param);

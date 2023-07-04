@@ -16,6 +16,7 @@ function tryOpen(path: string, emitError = false) {
 if(!lib && process.env["DENO_SQLITE_LOCAL"] === "1") {
   tryOpen(process.env["NODE_SQLITE_PATH"], true);
 }
+if(!lib) tryOpen(require("path").join(__dirname,"sqlite3"));
 if(!lib) tryOpen("sqlite3", true);
 
 const sqlite3_type = koffi.opaque("sqlite3");
@@ -149,7 +150,7 @@ export default {
     "int32", // int iCol
   ]),
 
-  sqlite3_column_blob: lib.func("sqlite3_column_blob", "const uint8*", [
+  sqlite3_column_blob: lib.func("sqlite3_column_blob", "const void*", [
     "sqlite3_stmt*", // sqlite3_stmt *pStmt
     "int32", // int iCol
   ]),
@@ -189,7 +190,7 @@ export default {
   sqlite3_bind_blob: lib.func("sqlite3_bind_blob", "int32", [
     "sqlite3_stmt*", // sqlite3_stmt *pStmt
     "int32", // int iCol
-    "const void *", // const void *zData
+    koffi.inout("uint8_t*") /* const void *zData */,
     "int32", // int nData
     "void*", // void (*xDel)(void*)
   ]),
@@ -250,14 +251,14 @@ export default {
 
   sqlite3_blob_read: lib.func("sqlite3_blob_read", "int32", [
     "sqlite3_blob*" /* sqlite3_blob *blob */,
-    koffi.inout("uint8_t**") /* sqlite3_blob **ppBlob */,
+    koffi.inout("uint8_t*") /* void *data */,
     "int32" /* int N */,
     "int32" /* int iOffset */,
   ]),
 
   sqlite3_blob_write: lib.func("sqlite3_blob_write", "int32", [
     "sqlite3_blob*" /* sqlite3_blob *blob */,
-    koffi.inout("uint8_t**") /* sqlite3_blob **ppBlob */,
+    koffi.inout("uint8_t*") /* void *data */,
     "int32" /* int n */,
     "int32" /* int iOffset */,
   ]),
