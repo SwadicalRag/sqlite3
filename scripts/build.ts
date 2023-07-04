@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
 const os = require("os");
 
 const ARCH = process.env.TARGET_ARCH || os.arch();
@@ -48,7 +48,7 @@ const libWithArch = `${prefix}sqlite3${
 
 const $ = (cmd, ...args) => {
   console.log(`$ ${cmd} ${args.join(" ")}`);
-  execSync(`${cmd} ${args.join(" ")}`, { stdio: "inherit" });
+  spawnSync(`${cmd}`, args, { stdio: "inherit" });
 };
 
 try { fs.rmdirSync(path.resolve(__dirname, "../build"), { recursive: true }) } catch (e) {}
