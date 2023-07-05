@@ -13,12 +13,15 @@ function tryOpen(path: string, emitError = false) {
   }
 }
 
-if(!lib && process.env["DENO_SQLITE_LOCAL"] === "1") {
+if(!lib && process.env["NODE_SQLITE_LOCAL"] === "1") {
   tryOpen(process.env["NODE_SQLITE_PATH"], true);
 }
 if(!lib) tryOpen(require("path").join(__dirname,"sqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"libsqlite3"));
 if(!lib) tryOpen(require("path").join(__dirname,"..","build","sqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"..","build","libsqlite3"));
 if(!lib) tryOpen("sqlite3", true);
+if(!lib) tryOpen("libsqlite3", true);
 
 const sqlite3_type = koffi.opaque("sqlite3");
 const sqlite3_context_type = koffi.opaque("sqlite3_context");
