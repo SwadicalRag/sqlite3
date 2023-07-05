@@ -119,7 +119,7 @@ export default {
 
   sqlite3_column_text: lib.func(
     "sqlite3_column_text",
-    "const char *",
+    "const void *",
     [
       "sqlite3_stmt*", // sqlite3_stmt *pStmt
       "int32", // int iCol
@@ -190,7 +190,7 @@ export default {
   sqlite3_bind_blob: lib.func("sqlite3_bind_blob", "int32", [
     "sqlite3_stmt*", // sqlite3_stmt *pStmt
     "int32", // int iCol
-    koffi.inout("uint8_t*") /* const void *zData */,
+    "const uint8*", // const void *zData
     "int32", // int nData
     "void*", // void (*xDel)(void*)
   ]),
@@ -258,7 +258,7 @@ export default {
 
   sqlite3_blob_write: lib.func("sqlite3_blob_write", "int32", [
     "sqlite3_blob*" /* sqlite3_blob *blob */,
-    koffi.inout("uint8_t*") /* void *data */,
+    "const uint8*" /* void *data */,
     "int32" /* int n */,
     "int32" /* int iOffset */,
   ]),

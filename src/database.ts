@@ -407,7 +407,7 @@ export class Database {
     const cb = koffi.register(
       (ctx, nArgs, pArgs) => {
         const args: any[] = [];
-        pArgs = koffi.decode(pArgs, koffi.array("sqlite3_value*", nArgs))
+        pArgs = nArgs !== 0 ? koffi.decode(pArgs, koffi.array("sqlite3_value*", nArgs)) : [];
         for (let i = 0; i < nArgs; i++) {
           const arg = pArgs[i];
           const type = sqlite3_value_type(arg);
@@ -418,21 +418,38 @@ export class Database {
             case SQLITE_FLOAT:
               args.push(sqlite3_value_double(arg));
               break;
-            case SQLITE_TEXT:
+            case SQLITE_TEXT: {
+              const ptr = sqlite3_value_text(arg);
+              if(ptr === null) {
+                args.push(null);
+                break;
+              }
+              const bytes = sqlite3_value_bytes(arg);
+              if(bytes === 0) {
+                args.push("");
+                break;
+              }
               args.push(
-                new TextDecoder().decode(
-                  koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
-                  // Uint8Array.from(koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg),"Array"))),
-                ),
+                koffi.decode(ptr, koffi.array("int8_t", bytes, "String")),
               );
               break;
-            case SQLITE_BLOB:
+            }
+            case SQLITE_BLOB: {
+              const ptr = sqlite3_value_blob(arg);
+              if(ptr === null) {
+                args.push(null);
+                break;
+              }
+              const bytes = sqlite3_value_bytes(arg);
+              if(bytes === 0) {
+                args.push("");
+                break;
+              }
               args.push(
-                koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
-                // copyBuffer(koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg)))),
-                // Uint8Array.from(koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg), "Array"))),
+                koffi.decode(ptr, koffi.array("uint8_t", bytes)),
               );
               break;
+            }
             case SQLITE_NULL:
               args.push(null);
               break;
@@ -527,6 +544,7 @@ export class Database {
           contexts.set(aggrCtx, aggregate);
         }
         const args: any[] = [];
+        pArgs = nArgs !== 0 ? koffi.decode(pArgs, koffi.array("sqlite3_value*", nArgs)) : [];
         for (let i = 0; i < nArgs; i++) {
           const arg = pArgs[i];
           const type = sqlite3_value_type(arg);
@@ -537,18 +555,38 @@ export class Database {
             case SQLITE_FLOAT:
               args.push(sqlite3_value_double(arg));
               break;
-            case SQLITE_TEXT:
+            case SQLITE_TEXT: {
+              const ptr = sqlite3_value_text(arg);
+              if(ptr === null) {
+                args.push(null);
+                break;
+              }
+              const bytes = sqlite3_value_bytes(arg);
+              if(bytes === 0) {
+                args.push("");
+                break;
+              }
               args.push(
-                new TextDecoder().decode(
-                  koffi.decode(sqlite3_value_text(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
-                ),
+                koffi.decode(ptr, koffi.array("int8_t", bytes, "String")),
               );
               break;
-            case SQLITE_BLOB:
+            }
+            case SQLITE_BLOB: {
+              const ptr = sqlite3_value_blob(arg);
+              if(ptr === null) {
+                args.push(null);
+                break;
+              }
+              const bytes = sqlite3_value_bytes(arg);
+              if(bytes === 0) {
+                args.push("");
+                break;
+              }
               args.push(
-                koffi.decode(sqlite3_value_blob(arg), koffi.array("uint8_t", sqlite3_value_bytes(arg))),
+                koffi.decode(ptr, koffi.array("uint8_t", bytes)),
               );
               break;
+            }
             case SQLITE_NULL:
               args.push(null);
               break;

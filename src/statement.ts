@@ -78,7 +78,9 @@ function getColumn(handle: any, i: number, int64: boolean): any {
     case SQLITE_TEXT: {
       const ptr = sqlite3_column_text(handle, i);
       if (ptr === null) return null;
-      return ptr;
+      const bytes = sqlite3_column_bytes(handle, i);
+      if(bytes === 0) return "";
+      return koffi.decode(ptr, koffi.array("int8_t", bytes, "String"));
     }
 
     case SQLITE_INTEGER: {
@@ -91,7 +93,9 @@ function getColumn(handle: any, i: number, int64: boolean): any {
 
     case SQLITE_BLOB: {
       const ptr = sqlite3_column_blob(handle, i);
+      if (ptr === null) return null;
       const bytes = sqlite3_column_bytes(handle, i);
+      if(bytes === 0) return new Uint8Array(0);
       return koffi.decode(ptr, koffi.array("uint8_t", bytes));
     }
 
