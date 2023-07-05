@@ -42,15 +42,25 @@ jobs:
       - name: Run Tests
         run: npm run test
 
-      - name: Release
+      # - name: Release
+      #   if: ${{ github.ref == 'refs/heads/main' }}
+      #   uses: softprops/action-gh-release@master
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     tag_name: "Release Draft"
+      #     draft: true
+      #     files: |
+      #       build/libsqlite3_x64.so
+      #       build/libsqlite3_x64.dylib
+      #       build/sqlite3_x64.dll
+
+      - name: Push Binaries
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: softprops/action-gh-release@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/upload-artifact@v3
         with:
-          tag_name: "Release Draft"
-          draft: true
-          files: |
-            build/libsqlite3.so
-            build/libsqlite3.dylib
-            build/sqlite3.dll
+          name: sqlite3
+          path: |
+            build/libsqlite3_x64.so
+            build/libsqlite3_x64.dylib
+            build/sqlite3_x64.dll
