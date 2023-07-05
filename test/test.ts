@@ -177,7 +177,6 @@ test("sqlite", async (t) => {
 
     assertEquals(rows.length, 9);
     for (const row of rows) {
-      console.log(row.integer,row.double)
       assertEquals(typeof row.integer, "number");
       assertEquals(row.text, `hello ${row.integer}`);
       assertEquals(row.double, (row.integer % 2 === 0) ? 3.14 : null);
