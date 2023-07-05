@@ -51,8 +51,8 @@ const $ = (cmd, ...args) => {
   spawnSync(`${cmd}`, args, { stdio: "inherit" });
 };
 
-try { fs.rmdirSync(path.resolve(__dirname, "../build"), { recursive: true }) } catch (e) {}
-try { fs.rmdirSync(path.resolve(__dirname, "../sqlite/build"), { recursive: true }) } catch (e) {}
+try { fs.rmSync(path.resolve(__dirname, "../build"), { recursive: true }) } catch (e) {}
+try { fs.rmSync(path.resolve(__dirname, "../sqlite/build"), { recursive: true }) } catch (e) {}
 fs.mkdirSync(path.resolve(__dirname, "../build"));
 fs.mkdirSync(path.resolve(__dirname, "../sqlite/build"));
 
