@@ -114,7 +114,7 @@ test("sqlite", async (t) => {
     assertEquals(db.lastInsertRowId, 1);
   });
 
-  await t.test("prepared insert", () => {
+  await t.test("prepared insert with random null values", () => {
     const SQL = `insert into test (integer, text, double, blob, nullable)
     values (?, ?, ?, ?, ?)`;
     const stmt = db.prepare(SQL);
@@ -135,7 +135,7 @@ test("sqlite", async (t) => {
       rows.push([
         i,
         `hello ${i}`,
-        3.14,
+        i % 2 === 0 ? 3.14 : null,
         new Uint8Array([3, 2, 1]),
         null,
       ]);
@@ -177,9 +177,10 @@ test("sqlite", async (t) => {
 
     assertEquals(rows.length, 9);
     for (const row of rows) {
+      console.log(row.integer,row.double)
       assertEquals(typeof row.integer, "number");
       assertEquals(row.text, `hello ${row.integer}`);
-      assertEquals(row.double, 3.14);
+      assertEquals(row.double, (row.integer % 2 === 0) ? 3.14 : null);
       assertEquals(row.blob, new Uint8Array([3, 2, 1]));
       assertEquals(row.nullable, null);
     }
