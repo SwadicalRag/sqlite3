@@ -17,18 +17,23 @@ function tryOpen(path: string, emitError = false) {
 if(!lib && process.env["NODE_SQLITE_LOCAL"] === "1") {
   tryOpen(process.env["NODE_SQLITE_PATH"], true);
 }
-if(!lib) tryOpen(require("path").join(__dirname,"sqlite3"));
-if(!lib) tryOpen(require("path").join(__dirname,"sqlite3_" + os.arch()));
-if(!lib) tryOpen(require("path").join(__dirname,"libsqlite3"));
-if(!lib) tryOpen(require("path").join(__dirname,"libsqlite3_" + os.arch()));
-if(!lib) tryOpen(require("path").join(__dirname,"..","build","sqlite3"));
-if(!lib) tryOpen(require("path").join(__dirname,"..","build","sqlite3_" + os.arch()));
-if(!lib) tryOpen(require("path").join(__dirname,"..","build","libsqlite3"));
-if(!lib) tryOpen(require("path").join(__dirname,"..","build","libsqlite3_" + os.arch()));
-if(!lib) tryOpen("sqlite3", true);
-if(!lib) tryOpen("sqlite3_" + os.arch(), true);
-if(!lib) tryOpen("libsqlite3", true);
-if(!lib) tryOpen("libsqlite3_" + os.arch(), true);
+else {
+  const ARCH = process.env.TARGET_ARCH || os.arch();
+  const prefix = os.platform() === "win32" ? "" : "lib";
+  const ext = os.platform() === "win32"
+    ? "dll"
+    : os.platform() === "darwin"
+    ? "dylib"
+    : "so";
+  const libWithArch = `${prefix}sqlite3${
+    ARCH !== "x86_64" ? `_${ARCH}` : ""
+  }.${ext}`;
+
+  if(!lib) tryOpen(require("path").join(__dirname,libWithArch));
+  if(!lib) tryOpen(require("path").join(__dirname,"..","build",libWithArch));
+  if(!lib) tryOpen(libWithArch);
+  if(!lib) tryOpen("sqlite3", true);
+}
 
 const sqlite3_type = koffi.opaque("sqlite3");
 const sqlite3_context_type = koffi.opaque("sqlite3_context");
