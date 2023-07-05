@@ -1,4 +1,5 @@
 import * as koffi from "koffi";
+import * as os from "os";
 
 let lib: koffi.IKoffiLib
 
@@ -17,11 +18,17 @@ if(!lib && process.env["NODE_SQLITE_LOCAL"] === "1") {
   tryOpen(process.env["NODE_SQLITE_PATH"], true);
 }
 if(!lib) tryOpen(require("path").join(__dirname,"sqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"sqlite3_" + os.arch()));
 if(!lib) tryOpen(require("path").join(__dirname,"libsqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"libsqlite3_" + os.arch()));
 if(!lib) tryOpen(require("path").join(__dirname,"..","build","sqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"..","build","sqlite3_" + os.arch()));
 if(!lib) tryOpen(require("path").join(__dirname,"..","build","libsqlite3"));
+if(!lib) tryOpen(require("path").join(__dirname,"..","build","libsqlite3_" + os.arch()));
 if(!lib) tryOpen("sqlite3", true);
+if(!lib) tryOpen("sqlite3_" + os.arch(), true);
 if(!lib) tryOpen("libsqlite3", true);
+if(!lib) tryOpen("libsqlite3_" + os.arch(), true);
 
 const sqlite3_type = koffi.opaque("sqlite3");
 const sqlite3_context_type = koffi.opaque("sqlite3_context");
@@ -43,7 +50,13 @@ const sqlite_xFinal = koffi.proto("void *xFinal(sqlite3_context*)");
 const sqlite3_free = lib.func("sqlite3_free", "void", [
   "void*", // void *p
 ]);
-const sqlite_string = koffi.disposable('SqliteString', 'const char*', sqlite3_free);
+const sqlite_string = koffi.disposable("SqliteString", "const char*", sqlite3_free);
+
+const sqlite3_initialize = lib.func("sqlite3_initialize", "int32", []);
+const init = sqlite3_initialize();
+if (init !== 0) {
+  throw new Error(`Failed to initialize SQLite3: ${init}`);
+}
 
 export default {
   sqlite_types: {
@@ -426,5 +439,5 @@ export default {
     koffi.out("SqliteString*"), // const char **pzErrMsg
   ]),
 
-  sqlite3_initialize: lib.func("sqlite3_initialize", "int32", []),
+  sqlite3_initialize,
 };
