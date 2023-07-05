@@ -55,13 +55,26 @@ jobs:
       #       build/libsqlite3_x64.dylib
       #       build/sqlite3_x64.dll
 
-      - name: Push Binaries
+      - name: Push Binaries (Windows)
         if: ${{ github.ref == 'refs/heads/main' }}
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v3
         with:
           name: sqlite3-win
           path: build/sqlite3_x64.dll
+
+      - name: Push Binaries (Mac)
+        if: ${{ github.ref == 'refs/heads/main' }}
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v3
+        with:
           name: sqlite3-mac
           path: build/libsqlite3_x64.dylib
+
+      - name: Push Binaries (Linux)
+        if: ${{ github.ref == 'refs/heads/main' }}
+        if: matrix.os == 'ubuntu-20.04'
+        uses: actions/upload-artifact@v3
+        with:
           name: sqlite3-linux
           path: build/libsqlite3_x64.so
