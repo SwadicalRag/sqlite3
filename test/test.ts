@@ -114,7 +114,7 @@ test("sqlite", async (t) => {
     assertEquals(db.lastInsertRowId, 1);
   });
 
-  await t.test("prepared insert with random null values", () => {
+  await t.test("prepared insert with interleaved null values", () => {
     const SQL = `insert into test (integer, text, double, blob, nullable)
     values (?, ?, ?, ?, ?)`;
     const stmt = db.prepare(SQL);
